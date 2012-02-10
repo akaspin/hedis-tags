@@ -1,5 +1,5 @@
 name:           hedis-tags
-version:        0.1
+version:        0.1.0
 cabal-version:  >= 1.8
 build-type:     Simple
 stability:      Experimental
@@ -10,6 +10,11 @@ license:        BSD3
 description:    Brain-free tags for Redis.
 category:       Database
 license-file:   LICENSE
+homepage:       https://github.com/akaspin/hedis-tags
+
+source-repository head
+  type:         git
+  location:     git://github.com/akaspin/hedis-tags.git
 
 library
   hs-source-dirs:  src

@@ -1,7 +1,15 @@
 {-# LANGUAGE OverloadedStrings #-} 
 
 -- | Hedis tags helper.
-module Database.Redis.Tags where
+
+module Database.Redis.Tags (
+    -- * Tagging
+    markTags,
+    purgeTags,
+    nestTags,
+    -- * Maintenance
+    reconsileTags
+) where
 
 import qualified Data.ByteString as B
 import qualified Database.Redis as R
@@ -9,7 +17,7 @@ import Data.Either (rights)
 
 import Control.Monad (void, filterM)
 
--- | Mark keys with tags. All tags named in next manner:
+-- | Mark keys with tags. Keys may be absent. All tags named in next manner:
 --
 -- > tag-prefix:tag:tag-signature
 -- 
@@ -49,13 +57,20 @@ purgeTags pref tags = do
     void $ R.del pt 
     void $ R.del keys 
 
+-- | Helper for create list of nested tags.
+--
+-- > nestTags ["one", "two", "three"]
+-- > ["one", "one:two", "one:two:three"]
+nestTags :: [B.ByteString] -> [B.ByteString]
+nestTags = scanl1 (\a b -> B.append a $ B.append ":" b)
+
 -- | Reconcile all tags with given prefix.
 --
 --   * Remove noexistent keys from tags.
 --   
 --   * Remove empty tags.
 --   
---   
+--   This operation take huge time complexity. Use it only for maintenance. 
 reconsileTags :: 
        B.ByteString   -- ^ Tags prefix. 
     -> R.Redis ()
@@ -78,13 +93,6 @@ reconsileTags pref = do
         return $ case ex of
             Right False -> True
             _ -> False
-
--- | Helper for create list of nested tags.
---
--- > nestTags ["one", "two", "three"]
--- > ["one", "one:two", "one:two:three"]
-nestTags :: [B.ByteString] -> [B.ByteString]
-nestTags = scanl1 (\a b -> B.append a $ B.append ":" b)
     
 -----------------------------------------------------------------------------
 -- Internal
