@@ -36,7 +36,7 @@ caseMark = bracket_
     setup
     teardown
     $ runInRedis $ do
-        let expected = appendPrefix . scrap $ [1..9]
+        let expected = appendScrap [1..9]
         RT.markTags expected
                     allPrefix
                     (scrap [1..3])
@@ -51,7 +51,7 @@ casePurge = bracket_
     setup
     teardown
     $ runInRedis $ do
-        let expected = appendPrefix . scrap $ [1..9]
+        let expected = appendScrap [1..9]
         let tags = appendPrefix . map (":tag:" `B.append`) $ scrap [1..3]
         RT.markTags expected
                     allPrefix
@@ -71,23 +71,25 @@ caseReconsile = bracket_
     setup
     teardown
     $ runInRedis $ do
-        let expected = appendPrefix . scrap $ [1..9]
+        let expected = scrap9
         let tags = appendPrefix . map (":tag:" `B.append`) $ scrap [1..3]
         RT.markTags expected
                     allPrefix
                     (scrap [1..3])
-        void $ R.del $ appendPrefix . scrap $ [1..8]
+        void $ R.del $ appendScrap [1..8]
         RT.reconsileTags allPrefix
         t <- R.keys $ allPrefix `B.append` ":tag:*"
         k <- R.sunion tags
         liftIO $ Right tags @=? t
         liftIO $ Right ["redistags9"] @=? k
-        void $ R.del $ appendPrefix . scrap $ [1..9]
+        void $ R.del scrap9
         RT.reconsileTags allPrefix
         t' <- R.keys $ allPrefix `B.append` ":tag:*"
         k' <- R.sunion tags
         liftIO $ Right [] @=? t'
         liftIO $ Right [] @=? k'
+  where
+    scrap9 = appendScrap [1..9]
         
         
 runInRedis :: forall b. R.Redis b -> IO b
@@ -114,6 +116,9 @@ scrap = map (B8.pack . show)
 
 appendPrefix :: [B.ByteString] -> [B.ByteString]
 appendPrefix = map (allPrefix `B.append`)
+
+appendScrap :: [Int] -> [B8.ByteString]
+appendScrap = appendPrefix . scrap
 
 allPrefix :: B.ByteString
 allPrefix = "redistags"
