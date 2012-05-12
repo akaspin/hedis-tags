@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-} 
+{-# LANGUAGE OverloadedStrings, FlexibleContexts #-} 
 
 -- | Hedis tags helper.
 
@@ -15,7 +15,7 @@ import qualified Data.ByteString as B
 import qualified Database.Redis as R
 import Data.Either (rights)
 
-import Control.Monad (void, filterM)
+import Control.Monad (filterM)
 
 -- | Mark keys with tags. Keys may be absent. All tags named in next manner:
 --
@@ -25,16 +25,17 @@ import Control.Monad (void, filterM)
 --   each other.
 --
 --   /Time complexity/ @O(K+T)@ where @K@ and @T@ is number of keys and tags.
-markTags :: 
+markTags :: R.RedisCtx m f =>
        [B.ByteString]   -- ^ Keys.
     -> B.ByteString     -- ^ Prefix for tags. 
     -> [B.ByteString]   -- ^ Tags. To make list of nested tags use 'nestTags'.
-    -> R.Redis ()
+    -> m ()
 markTags [] _ _ = return ()
 markTags _ _ [] = return ()
-markTags keys pref tags =
-    let pt = map (tagName pref) tags in 
-    void $ mapM (`R.sadd` keys) pt
+markTags keys pref tags = do
+    let pt = map (tagName pref) tags  
+    _ <- mapM (`R.sadd` keys) pt
+    return ()
 
 -- | Purge tagged keys and tags. 
 --
@@ -45,17 +46,18 @@ markTags keys pref tags =
 --
 --   /Time complexity/ @~O(T+2K)@ where @T@ is number tags and @K@ is number 
 --   of tagged keys.
-purgeTags :: 
+purgeTags :: R.RedisCtx m (Either a) =>
        B.ByteString    -- ^ Prefix for tags.  
     -> [B.ByteString]  -- ^ Tags. To make list of nested tags use 'nestTags'.
-    -> R.Redis ()
+    -> m ()
 purgeTags _ [] = return ()
 purgeTags pref tags = do
     let pt = map (tagName pref) tags
     a <- R.sunion pt
     let keys = head $ rights [a]
-    void $ R.del pt 
-    void $ R.del keys 
+    _ <- R.del pt 
+    _ <- R.del keys
+    return () 
 
 -- | Helper for create list of nested tags.
 --
@@ -71,13 +73,14 @@ nestTags = scanl1 (\a b -> B.append a $ B.append ":" b)
 --   * Remove empty tags.
 --   
 --   This operation take huge time complexity. Use it only for maintenance. 
-reconsileTags :: 
+reconsileTags :: R.RedisCtx m (Either a) =>
        B.ByteString   -- ^ Tags prefix. 
-    -> R.Redis ()
+    -> m ()
 reconsileTags pref = do
     allTags <- R.keys $ tagName pref "*"
     needRem <- filterM reconsileTag $ head $ rights [allTags]
-    void $ R.del needRem
+    _ <- R.del needRem
+    return ()
   where
     reconsileTag t = do
         keys <- R.smembers t
@@ -86,7 +89,7 @@ reconsileTags pref = do
         if needRem == keys'
             then return True
             else do 
-                void $ R.srem t needRem
+                _ <- R.srem t needRem
                 return False
     checkKey k = do
         ex <- R.exists k
